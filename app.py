@@ -26,10 +26,36 @@ def save_config(cfg):
 
 
 def is_valid_utc_iso(s: str) -> bool:
-    # attend un ISO en UTC (Z ou +00:00)
+    """Valide une date ISO 8601 STRICTEMENT en UTC.
+
+    Accepté :
+      - 2026-03-01T00:00:00Z
+      - 2026-03-01T00:00:00+00:00
+
+    Refusé :
+      - 2026-03-01T00:00:00+02:00
+      - 2026-03-01T00:00:00 (sans timezone)
+    """
     try:
-        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
-        return dt.tzinfo is not None
+        if not isinstance(s, str):
+            return False
+        s = s.strip()
+        if not s:
+            return False
+
+        # Autoriser le suffixe Z
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+
+        dt = datetime.fromisoformat(s)
+
+        # Doit être "aware" (timezone présent)
+        if dt.tzinfo is None:
+            return False
+
+        # Doit être UTC strict (offset 0)
+        return dt.utcoffset() == timezone.utc.utcoffset(dt)
+
     except Exception:
         return False
 
