@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Compte à rebours</title>
+  <style>
+    :root{
+      --bg1:#140018; --bg2:#2b0030; --pink:#ff4fd8; --pink2:#ff9be6;
+      --border: rgba(255,255,255,.14); --text: rgba(255,255,255,.92); --muted: rgba(255,255,255,.68);
+      --shadow: 0 20px 70px rgba(0,0,0,.45);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; color:var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      background:
+        linear-gradient(rgba(20,0,24,0.55), rgba(20,0,24,0.75)),
+        url("sakura.png") center center / cover no-repeat fixed;
+      display:grid; place-items:center; padding:24px;
+    }
+    .card{
+      width:min(920px, 96vw);
+      background: linear-gradient(135deg, rgba(255,255,255,.12), rgba(255,255,255,.04));
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 28px;
+      box-shadow:
+        0 20px 70px rgba(0,0,0,.45),
+        0 0 60px rgba(255,79,216,.15);
+      padding: 28px 28px 22px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      transition: transform .4s ease, box-shadow .4s ease;
+    }
+    .card:hover{
+      transform: translateY(-5px);
+      box-shadow:
+        0 30px 90px rgba(0,0,0,.55),
+        0 0 80px rgba(255,79,216,.25);
+    }
+    h1{margin:0; font-size: clamp(24px, 4vw, 42px); line-height:1.1;}
+    .subtitle{margin:10px 0 0; color:var(--muted)}
+    .timer{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin:26px 0 18px;}
+    .box{border:1px solid var(--border); background: rgba(0,0,0,.14); border-radius: 18px; padding: 16px 14px 14px; text-align:center;}
+    .num{
+      font-variant-numeric: tabular-nums;
+      font-size: clamp(34px, 6vw, 56px);
+      font-weight:800;
+      transition: transform .25s ease, opacity .25s ease;
+    }
+    .num.changed{
+      transform: scale(1.15);
+      opacity: .6;
+    }
+    .label{margin-top:10px; color:rgba(255,255,255,.70); font-size:13px; letter-spacing:.22em; text-transform:uppercase;}
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between}
+    input{border:1px solid var(--border); background: rgba(255,255,255,.08); color: var(--text); border-radius: 12px; padding: 10px 12px; outline:none;}
+    button{
+      border:1px solid rgba(255,79,216,.45);
+      background: linear-gradient(180deg, rgba(255,79,216,.28), rgba(255,79,216,.12));
+      color: var(--text); padding: 10px 12px; border-radius: 12px; cursor:pointer;
+    }
+    .hint{color:var(--muted); font-size:14px}
+    .msg{margin-top:10px; color: var(--pink2); min-height: 1.2em;}
+    @media (max-width:700px){ .timer{grid-template-columns:repeat(2,1fr);} }
+    /* Halo animé */
+    .glow{
+      position:fixed; inset:-30%;
+      background: radial-gradient(circle at 50% 50%, rgba(255,79,216,.14), transparent 55%);
+      animation: pulse 6s ease-in-out infinite;
+      pointer-events:none;
+      mix-blend-mode: screen;
+    }
+    @keyframes pulse{
+      0%,100%{ transform: scale(1); opacity:.75; }
+      50%{ transform: scale(1.08); opacity:1; }
+    }
+
+    /* Particules */
+    .sparkle{
+      position:fixed; inset:-20vh -10vw;
+      pointer-events:none;
+      filter: blur(.2px);
+      opacity:.9;
+    }
+    .sparkle i{
+      position:absolute;
+      width:6px; height:6px;
+      border-radius:999px;
+      background: radial-gradient(circle at 30% 30%, #fff, var(--pink));
+      box-shadow: 0 0 14px rgba(255,79,216,.75);
+      animation: floatUp linear infinite;
+      opacity:.65;
+    }
+    @keyframes floatUp{
+      from{ transform: translateY(120vh) translateX(0) scale(.8) rotate(0deg); }
+      to  { transform: translateY(-40vh) translateX(var(--drift)) scale(1.1) rotate(360deg); }
+    }
+    /* Pétales qui tombent */
+    .petals{
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 0; /* derrière la carte */
+    }
+
+    /* La carte doit être au-dessus */
+    .card{
+      position: relative;
+      z-index: 2;
+    }
+
+    .petal{
+      position: absolute;
+      top: -10vh;
+      width: 14px;
+      height: 10px;
+      opacity: .75;
+      filter: blur(.1px);
+      border-radius: 12px 12px 12px 0;
+      transform: rotate(25deg);
+      background: radial-gradient(circle at 30% 30%, #fff, rgba(255, 155, 230, .95) 55%, rgba(255, 79, 216, .75));
+      box-shadow: 0 0 18px rgba(255,79,216,.25);
+      animation:
+        petalFall linear infinite,
+        petalSway ease-in-out infinite;
+      will-change: transform, top, left;
+    }
+
+    @keyframes petalFall{
+      to { transform: translateY(120vh) rotate(360deg); }
+    }
+
+    @keyframes petalSway{
+      0%,100%{ margin-left: 0; }
+      50%{ margin-left: var(--sway); }
+    }
+
+    /* Progression jours (points + personnage) */
+    .progressWrap{ margin-top: 18px; }
+    .progressHeader{
+      display:flex;
+      justify-content:space-between;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+
+    .progressTrack{
+      position: relative;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.12);
+      border-radius: 16px;
+      padding: 14px 14px;
+      overflow-x: auto;   /* important si beaucoup de jours */
+      overflow-y: hidden;
+    }
+
+    .progressLine{
+      position:absolute;
+      left: 14px;
+      right: 14px;
+      top: 50%;
+      height: 2px;
+      transform: translateY(-50%);
+      background: rgba(255,255,255,.18);
+    }
+
+    .progressDots{
+      position: relative;
+      display: inline-flex;
+      align-items:center;
+      gap: 10px;
+      padding: 6px 0;
+      z-index: 1;
+      min-width: 100%;
+    }
+
+    .dot{
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.25);
+      box-shadow: 0 0 0 1px rgba(255,255,255,.12) inset;
+      flex: 0 0 auto;
+    }
+
+    .dot.done{
+      background: rgba(255,155,230,.95);
+      box-shadow: 0 0 18px rgba(255,79,216,.25);
+    }
+
+    .dot.today{
+      transform: scale(1.2);
+      background: rgba(255,79,216,.95);
+      box-shadow: 0 0 22px rgba(255,79,216,.45);
+    }
+
+    .walker{
+      position:absolute;
+      top: 50%;
+      transform: translate(-50%, -58%);
+      font-size: 22px;
+      z-index: 2;
+      filter: drop-shadow(0 10px 18px rgba(0,0,0,.35));
+      transition: left .6s ease;
+    }
+
+    .progressHint{
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="petals" aria-hidden="true" id="petals"></div>
+  <div class="glow"></div>
+  <div class="sparkle" aria-hidden="true" id="sparkles"></div>
+  <div class="card">
+    <header class="row" style="align-items:flex-start">
+      <div>
+        <h1 id="title">On se retrouve bientôt 💗</h1>
+        <p class="subtitle" id="subtitle">Compte à rebours avant l’événement</p>
+      </div>
+      <div class="hint" id="status">En cours…</div>
+    </header>
+
+    <div class="timer">
+      <div class="box"><div class="num" id="d">00</div><div class="label">Jours</div></div>
+      <div class="box"><div class="num" id="h">00</div><div class="label">Heures</div></div>
+      <div class="box"><div class="num" id="m">00</div><div class="label">Minutes</div></div>
+      <div class="box"><div class="num" id="s">00</div><div class="label">Secondes</div></div>
+    </div>
+
+    <div class="progressWrap">
+      <div class="progressHeader">
+        <span id="startLabel">Début</span>
+        <span id="endLabel">Fin</span>
+      </div>
+
+      <div class="progressTrack" id="progressTrack">
+        <div class="progressLine"></div>
+        <div class="progressDots" id="progressDots"></div>
+        <div class="walker" id="walker" title="En route 🌸">🐰</div>
+      </div>
+
+      <div class="progressHint" id="progressHint"></div>
+    </div>
+
+    <div class="row">
+      <div class="hint">Pour mathy :) </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end">
+        <input id="startDt" type="datetime-local" />
+        <input id="dt" type="datetime-local" />
+        <input id="pwd" type="password" placeholder="Mot de passe admin" />
+        <button id="save">Définir</button>
+      </div>
+    </div>
+
+    <div class="msg" id="msg"></div>
+  </div>
+
+<script>
+  // --- Pétales (animation) ---
+  const petalsRoot = document.getElementById("petals");
+
+  function spawnPetals(count = 24){
+    if (!petalsRoot) return;
+
+    for (let i = 0; i < count; i++){
+      const p = document.createElement("span");
+      p.className = "petal";
+
+      const left = Math.random() * 100;                // vw
+      const duration = 10 + Math.random() * 14;        // sec
+      const delay = -Math.random() * duration;         // pour étaler dans le temps
+      const size = 10 + Math.random() * 14;            // px
+      const sway = (Math.random() * 40 - 20) + "px";   // oscillation
+
+      p.style.left = left + "vw";
+      p.style.width = size + "px";
+      p.style.height = (size * 0.75) + "px";
+      p.style.animationDuration = `${duration}s, ${3 + Math.random() * 4}s`;
+      p.style.animationDelay = `${delay}s, ${-Math.random() * 3}s`;
+      p.style.setProperty("--sway", sway);
+
+      // petite variation de transparence
+      p.style.opacity = String(0.35 + Math.random() * 0.55);
+
+      petalsRoot.appendChild(p);
+    }
+  }
+
+  spawnPetals(40);
+
+
+  // Particules (fond animé)
+  const sparkles = document.getElementById("sparkles");
+  const N = 40;
+  for (let i = 0; i < N; i++) {
+    const p = document.createElement("i");
+    const left = Math.random() * 100;
+    const top = Math.random() * 100;
+    const dur = 7 + Math.random() * 10;
+    const delay = -Math.random() * dur;
+    const size = 4 + Math.random() * 5;
+    const drift = (Math.random() * 40 - 20) + "vw";
+    p.style.left = left + "vw";
+    p.style.top = top + "vh";
+    p.style.width = size + "px";
+    p.style.height = size + "px";
+    p.style.animationDuration = dur + "s";
+    p.style.animationDelay = delay + "s";
+    p.style.setProperty("--drift", drift);
+    sparkles.appendChild(p);
+  }
+
+  const el = (id)=>document.getElementById(id);
+  const D=el("d"), H=el("h"), M=el("m"), S=el("s");
+  const titleEl=el("title"), subtitleEl=el("subtitle"), statusEl=el("status");
+  const dtInput=el("dt"), pwdInput=el("pwd"), msgEl=el("msg");
+  const startDtInput = el("startDt");
+
+  let cfg = null;
+  let target = null;
+
+  function toLocalInputValue(date){
+    const pad = (n) => String(n).padStart(2,"0");
+    return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  function formatInTZ(date, tz){
+    return new Intl.DateTimeFormat("fr-FR", {
+      timeZone: tz, year:"numeric", month:"long", day:"2-digit", hour:"2-digit", minute:"2-digit"
+    }).format(date);
+  }
+
+  const dotsRoot = document.getElementById("progressDots");
+  const walker = document.getElementById("walker");
+  const startLabel = document.getElementById("startLabel");
+  const endLabel = document.getElementById("endLabel");
+  const progressHint = document.getElementById("progressHint");
+  const track = document.getElementById("progressTrack");
+
+  let startDate = null;
+
+  function daysBetween(a, b) {
+    const ms = b - a;
+    return Math.max(0, Math.ceil(ms / 86400000)); // 86400000 = 24h
+  }
+
+  function clamp(n, min, max) { return Math.min(max, Math.max(min, n)); }
+
+  function buildProgressDots() {
+    if (!dotsRoot || !startDate || !target) return;
+
+    dotsRoot.innerHTML = "";
+
+    const totalDays = daysBetween(startDate, target); // nombre de points = totalDays + 1 (incluant début)
+    const dotCount = totalDays + 1;
+
+    // 1 point / jour : si énorme (ex: 500), ça reste ok car scrollable,
+    // mais tu peux limiter si besoin.
+    for (let i = 0; i < dotCount; i++) {
+      const d = document.createElement("span");
+      d.className = "dot";
+      d.dataset.dayIndex = String(i);
+      dotsRoot.appendChild(d);
+    }
+  }
+
+  function updateProgress() {
+    if (!dotsRoot || !walker || !startDate || !target) return;
+
+    const now = new Date();
+    const totalDays = daysBetween(startDate, target);
+    const elapsedDays = clamp(Math.floor((now - startDate) / 86400000), 0, totalDays);
+
+    // Colorer les points
+    const dots = dotsRoot.querySelectorAll(".dot");
+    dots.forEach((dot, idx) => {
+      dot.classList.toggle("done", idx <= elapsedDays);
+      dot.classList.toggle("today", idx === elapsedDays);
+    });
+
+    // Placer le personnage (sur le dot "elapsedDays")
+    const currentDot = dots[elapsedDays];
+    if (currentDot) {
+      const dotRect = currentDot.getBoundingClientRect();
+      const trackRect = track.getBoundingClientRect();
+      const leftInTrack = (dotRect.left - trackRect.left) + (dotRect.width / 2) + track.scrollLeft;
+      walker.style.left = leftInTrack + "px";
+
+      // Auto-scroll pour garder le personnage visible
+      const visibleLeft = track.scrollLeft;
+      const visibleRight = visibleLeft + track.clientWidth;
+      const margin = 80;
+      if (leftInTrack < visibleLeft + margin) track.scrollLeft = Math.max(0, leftInTrack - margin);
+      if (leftInTrack > visibleRight - margin) track.scrollLeft = leftInTrack - (track.clientWidth - margin);
+    }
+
+    progressHint.textContent = `Jour ${elapsedDays} / ${totalDays}`;
+  }
+
+  async function loadConfig(){
+    const res = await fetch("/api/config", { cache:"no-store" });
+    cfg = await res.json();
+    target = new Date(cfg.targetUtc);
+    startDate = new Date(cfg.startUtc);
+
+    titleEl.textContent = cfg.title || "On se retrouve bientôt 💗";
+    const tz = cfg.timeZone || "Europe/Paris";
+    const prefix = cfg.subtitlePrefix || "Compte à rebours avant l’événement";
+    subtitleEl.textContent = `${prefix} — ${formatInTZ(target, tz)} (${tz})`;
+
+    buildProgressDots();
+    updateProgress();
+
+    // pré-remplit le champ en heure locale navigateur
+    dtInput.value = toLocalInputValue(new Date(target));
+    startDtInput.value = toLocalInputValue(new Date(startDate));
+  }
+
+  function updateNumber(el, value){
+    if (el.textContent !== value){
+      el.classList.add("changed");
+      setTimeout(()=>el.classList.remove("changed"),200);
+      el.textContent = value;
+    }
+  }
+
+  function update(){
+    const now = new Date();
+    let diff = target - now;
+
+    if (diff <= 0){
+      diff = 0;
+      statusEl.textContent = "Terminé";
+    } else {
+      statusEl.textContent = "En cours…";
+    }
+
+    const totalSeconds = Math.floor(diff / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+
+    updateNumber(D, String(days).padStart(2,"0"));
+    updateNumber(H, String(hours).padStart(2,"0"));
+    updateNumber(M, String(mins).padStart(2,"0"));
+    updateNumber(S, String(secs).padStart(2,"0"));
+
+  }
+
+  el("save").addEventListener("click", async ()=>{
+    msgEl.textContent = "";
+    if (!dtInput.value){ msgEl.textContent = "Choisis une date."; return; }
+    if (!pwdInput.value){ msgEl.textContent = "Mot de passe admin requis."; return; }
+
+    // datetime-local = heure locale du navigateur -> converti en UTC ISO
+    const localStart = new Date(startDtInput.value);
+    const startUtc = localStart.toISOString();
+    const localDate = new Date(dtInput.value);
+    const targetUtc = localDate.toISOString();
+
+    const body = {
+      password: pwdInput.value,
+      startUtc,
+      targetUtc,
+      timeZone: (cfg && cfg.timeZone) ? cfg.timeZone : "Europe/Paris",
+      title: cfg && cfg.title ? cfg.title : undefined,
+      subtitlePrefix: cfg && cfg.subtitlePrefix ? cfg.subtitlePrefix : undefined
+    };
+
+    const res = await fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify(body)
+    });
+
+    const out = await res.json();
+    if (!res.ok){
+      msgEl.textContent = out.error || "Erreur.";
+      return;
+    }
+
+    msgEl.textContent = "✅ Date mise à jour pour tout le monde.";
+    await loadConfig();
+    update();
+  });
+
+  (async ()=>{
+    await loadConfig();
+    update();
+    setInterval(() => { update(); updateProgress(); }, 1000);
+  })();
+
+</script>
+</body>
+</html>
